@@ -2,6 +2,11 @@ name: Build AppImage
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name for the AppImage (leave blank to use the commit hash)'
+        required: false
+        default: ''
   pull_request:
   push:
   release:
@@ -133,6 +138,9 @@ jobs:
             VERSION=${{ github.ref_name }}
         else
             VERSION=${{ github.event.inputs.version }}
+        fi
+        if [ -z "$VERSION" ]; then
+            VERSION=$(git rev-parse --short HEAD)
         fi
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 

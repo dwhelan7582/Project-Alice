@@ -21,6 +21,39 @@ namespace launcher {
 static GLFWwindow* m_window = nullptr;
 #endif
 
+// Build the path to a game binary, inside the AppImage if HERE is set.
+static std::string alice_binary_path(const char* hereEnv, const char* name) {
+	return (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/" + name : std::string("./") + name;
+}
+
+// Pick the best game binary for this CPU that actually exists.
+// Builds do not always ship every variant (e.g. the AppImage only contains "Alice"),
+// so fall back instead of handing execv a path that is not there.
+static std::string pick_alice_binary(const char* hereEnv, bool allow_simd) {
+	std::vector<const char*> candidates;
+	if(allow_simd) {
+		__builtin_cpu_init();
+		if(__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512cd") && __builtin_cpu_supports("avx512bw") && __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("avx512vl")) {
+			candidates.push_back("Alice512");
+		}
+		if(__builtin_cpu_supports("avx2")) {
+			candidates.push_back("Alice");
+		}
+	}
+	candidates.push_back("AliceSSE");
+	// Last resort: the default binary, even if the CPU check did not select it.
+	candidates.push_back("Alice");
+
+	for(auto name : candidates) {
+		auto path = alice_binary_path(hereEnv, name);
+		if(access(path.c_str(), X_OK) == 0) {
+			return path;
+		}
+	}
+	// Nothing found: return the preferred choice so execv reports a sensible path.
+	return alice_binary_path(hereEnv, candidates.front());
+}
+
 double last_cursor_blink_time = 0.0;
 const double CURSOR_BLINK_INTERVAL = 0.5;
 
@@ -193,18 +226,7 @@ void mouse_click() {
 		return;
 	case ui_obj_play_game:
 		if(file_is_ready.load(std::memory_order_acquire) && !selected_scenario_file.empty()) {
-			std::string alicePath;
-			__builtin_cpu_init();
-			// check if cpu supports avx. If it supports neither then fallbackt to SSE
-			if(__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512cd") && __builtin_cpu_supports("avx512bw") && __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("avx512vl")) {
-				alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/Alice512" : "./Alice512";
-			}
-			else if(__builtin_cpu_supports("avx2")) {
-				alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/Alice" : "./Alice";
-			}
-			else {
-				alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/AliceSSE" : "./AliceSSE";
-			}
+			std::string alicePath = pick_alice_binary(hereEnv, true);
 			std::vector<native_string> args;
 			args.push_back(native_string(alicePath));
 			args.push_back(selected_scenario_file);
@@ -231,7 +253,7 @@ void mouse_click() {
 		if(file_is_ready.load(std::memory_order_acquire) && !selected_scenario_file.empty()) {
 			std::vector<std::string> args;
 			// always run SSE in MP to catch lowest common denominator
-			std::string alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/AliceSSE" : "./AliceSSE";
+			std::string alicePath = pick_alice_binary(hereEnv, false);
 			args.push_back(native_string(alicePath));
 			args.push_back(selected_scenario_file);
 
@@ -1263,16 +1285,7 @@ int main(int argc, char* argv[]) {
 	const char* hereEnv = std::getenv("HERE");
 
 	if(file_is_ready.load(std::memory_order_acquire) && !selected_scenario_file.empty()) {
-		std::string alicePath;
-		__builtin_cpu_init();
-		// check if cpu supports avx. If it supports neither then fallbackt to SSE
-		if(__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512cd") && __builtin_cpu_supports("avx512bw") && __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("avx512vl")) {
-			alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/Alice512" : "./Alice512";
-		} else if(__builtin_cpu_supports("avx2")) {
-			alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/Alice" : "./Alice";
-		} else {
-			alicePath = (hereEnv != nullptr) ? std::string(hereEnv) + "/usr/bin/AliceSSE" : "./AliceSSE";
-		}
+		std::string alicePath = pick_alice_binary(hereEnv, true);
 		std::vector<native_string> args;
 		args.push_back(native_string(alicePath));
 		args.push_back(selected_scenario_file);
