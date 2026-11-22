@@ -157,13 +157,14 @@ budget_spending_details estimate_budget_detailed(sys::state& state, dcon::nation
 		+ subsidy_budget
 		+ construction_budget_before_refund
 		+ stockpile_budget_before_refund
-		+ construction_budget_before_refund
 		+ naval_budget_before_refund
 		+ land_budget_before_refund;
 
 	auto scale = 1.f;
-	if(total > available_funds) {
-		auto divisor = (available_funds - admin_budget);
+	if(total > available_funds - admin_budget) {
+		// Scale the non-admin categories down so they fit in what is left after admin,
+		// matching how the daily update spreads a shortfall (spending_scale in economy.cpp).
+		auto divisor = total;
 		if(divisor == 0.f) {
 			scale = 0.f;
 		} else {
