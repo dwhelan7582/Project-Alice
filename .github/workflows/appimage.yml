@@ -167,7 +167,7 @@ jobs:
         wget -c -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
         chmod +x linuxdeploy-x86_64.AppImage
         cp ../src/AppRun AppDir/AppRun
-        ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file AppDir/usr/share/applications/alice.desktop --icon-file AppDir/usr/share/icons/hicolor/128x128/apps/alice.png
+        LD_LIBRARY_PATH=$(pwd)/dependencies/luajit/luajit-prefix/lib:$LD_LIBRARY_PATH ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file AppDir/usr/share/applications/alice.desktop --icon-file AppDir/usr/share/icons/hicolor/128x128/apps/alice.png
 
     - name: Package AppImage and assets
       run: |
