@@ -62,7 +62,7 @@ inline constexpr float max = 1'000'000'000'000.f;
 inline constexpr float epsilon = min * 0.1f;
 inline constexpr float speed_multiplier = 0.02f;
 inline constexpr float additive_smoothing = 0.0075f;
-// Price band relative to a good's base cost (fork change): keeps prices from
+// Price band (fork change), relative to base cost x the market's median price level: keeps single goods from
 // running away to absurd values (e.g. cement or machine parts costing billions).
 inline constexpr float band_min_ratio = 0.1f;
 inline constexpr float band_max_ratio = 10.f;

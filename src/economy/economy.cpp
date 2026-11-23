@@ -5734,6 +5734,33 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 
 	set_profile_point(state, "update labor prices");
 
+	// Fork change: price band. Each market's general price level is the median of price / base cost
+	// over its goods; a single good's price is kept within band_min_ratio..band_max_ratio of that level.
+	// Following the median lets the whole economy inflate or deflate together while stopping one good
+	// from running away from the rest.
+	std::vector<float> market_price_level(state.world.market_size(), 0.f);
+	concurrency::parallel_for(uint32_t(0), state.world.market_size(), [&](uint32_t mi) {
+		dcon::market_id mid{ dcon::market_id::value_base_t(mi) };
+		if(!state.world.market_is_valid(mid))
+			return;
+		std::vector<float> ratios;
+		ratios.reserve(total_commodities);
+		for(uint32_t k = 1; k < total_commodities; ++k) {
+			dcon::commodity_id c{ dcon::commodity_id::value_base_t(k) };
+			if(state.world.commodity_get_money_rgo(c))
+				continue;
+			auto cost = state.world.commodity_get_cost(c);
+			auto price = state.world.market_get_price(mid, c);
+			if(cost > 0.f && price > 0.f && std::isfinite(price))
+				ratios.push_back(price / cost);
+		}
+		if(ratios.empty())
+			return;
+		auto middle = ratios.begin() + ratios.size() / 2;
+		std::nth_element(ratios.begin(), middle, ratios.end());
+		market_price_level[mi] = *middle;
+	});
+
 	concurrency::parallel_for(uint32_t(1), total_commodities, [&](uint32_t k) {
 		dcon::commodity_id cid{ dcon::commodity_id::value_base_t(k) };
 		//handling gold cost separetely
@@ -5756,13 +5783,16 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 #endif
 			auto next_price_clamped = ve::min(ve::max(next_price, price_properties::commodity::min), price_properties::commodity::max);
 			{
-				// keep the price within a band around the good's base cost
+				// keep the price within a band around base cost x this market's general price level
 				auto base_cost = state.world.commodity_get_cost(cid);
-				if(base_cost > 0.f) {
-					next_price_clamped = ve::min(
-						ve::max(next_price_clamped, base_cost * price_properties::commodity::band_min_ratio),
-						base_cost * price_properties::commodity::band_max_ratio
-					);
+				if(base_cost > 0.f && !presimulation) {
+					auto level = ve::apply([&](dcon::market_id m) {
+						auto i = m.index();
+						return (i >= 0 && size_t(i) < market_price_level.size()) ? market_price_level[i] : 0.f;
+					}, ids);
+					auto low = ve::select(level > 0.f, level * base_cost * price_properties::commodity::band_min_ratio, price_properties::commodity::min);
+					auto high = ve::select(level > 0.f, level * base_cost * price_properties::commodity::band_max_ratio, price_properties::commodity::max);
+					next_price_clamped = ve::min(ve::max(next_price_clamped, low), high);
 				}
 			}
 
