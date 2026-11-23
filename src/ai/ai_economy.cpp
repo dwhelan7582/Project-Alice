@@ -704,17 +704,27 @@ void update_ai_econ_construction(sys::state& state) {
 // Will try to stockpile up to thsis amount of days of the daily army/navy consumption
 constexpr uint32_t days_of_reserve_military_goods = 365 * 3;
 
+// Fork change: players also get automatic military stockpile targets, sized to one year of their
+// current army and navy consumption. Targets are only ever raised, so a player can still set a
+// higher target by hand; lowering one below the automatic level is undone next month.
+constexpr uint32_t days_of_reserve_military_goods_player = 365;
+
 void update_stockpile_targets(sys::state& state) {
 	nations::parallel_for_each_existing_nation(state, [&](dcon::nation_id nid) {
-		if(state.world.nation_get_is_player_controlled(nid)) {
-			return;
-		}
+		bool is_player = state.world.nation_get_is_player_controlled(nid);
 		auto army_navy_consumption = economy::estimate_nation_army_and_navy_consumption(state, nid);
 		state.world.for_each_unit_supply_and_build_commodity([&](dcon::unit_supply_and_build_commodity_id com_id) {
 			auto base_com_id = economy::unit_commodity_get_base_commodity(state, com_id);
 			float expected_consume = army_navy_consumption[com_id];
-			state.world.nation_set_stockpile_targets(nid, base_com_id, expected_consume * days_of_reserve_military_goods);
-
+			if(is_player) {
+				auto automatic = expected_consume * days_of_reserve_military_goods_player;
+				auto current = state.world.nation_get_stockpile_targets(nid, base_com_id);
+				if(automatic > current) {
+					state.world.nation_set_stockpile_targets(nid, base_com_id, automatic);
+				}
+			} else {
+				state.world.nation_set_stockpile_targets(nid, base_com_id, expected_consume * days_of_reserve_military_goods);
+			}
 		});
 	});
 }

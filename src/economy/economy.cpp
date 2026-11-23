@@ -5755,6 +5755,16 @@ void daily_update(sys::state& state, bool presimulation, float presimulation_sta
 			ve::apply([&](auto value) { assert(std::isfinite(value)); }, next_price);
 #endif
 			auto next_price_clamped = ve::min(ve::max(next_price, price_properties::commodity::min), price_properties::commodity::max);
+			{
+				// keep the price within a band around the good's base cost
+				auto base_cost = state.world.commodity_get_cost(cid);
+				if(base_cost > 0.f) {
+					next_price_clamped = ve::min(
+						ve::max(next_price_clamped, base_cost * price_properties::commodity::band_min_ratio),
+						base_cost * price_properties::commodity::band_max_ratio
+					);
+				}
+			}
 
 			auto current_confidence = state.world.market_get_price_confidence(ids, cid);
 			auto price_ratio = current_price / next_price_clamped;

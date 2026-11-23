@@ -351,6 +351,10 @@ struct budgetwindow_section_header_max_setting_t : public alice_ui::template_lab
 struct budgetwindow_section_header_refund_ratio_t : public alice_ui::template_label {
 // BEGIN section_header::refund_ratio::variables
 // END
+	ui::tooltip_behavior has_tooltip(sys::state & state) noexcept override {
+		return ui::tooltip_behavior::variable_tooltip;
+	}
+	void update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept override;
 	void on_update(sys::state& state) noexcept override;
 };
 struct budgetwindow_budget_row_contents_t : public ui::element_base {
@@ -3385,6 +3389,62 @@ void budgetwindow_section_header_refund_ratio_t::on_update(sys::state& state) no
 	}
 
 // END
+}
+void budgetwindow_section_header_refund_ratio_t::update_tooltip(sys::state& state, int32_t x, int32_t y, text::columnar_layout& contents) noexcept {
+	budgetwindow_section_header_t& section_header = *((budgetwindow_section_header_t*)(parent));
+	auto n = state.local_player_nation;
+	auto details = economy::national_budget::estimate_budget_detailed(state, n, economy::estimate_next_budget(state, n));
+
+	economy::national_budget::budget_spending_category const* data = nullptr;
+	bool scaled = true;
+	switch(section_header.section_type) {
+	case budget_categories::social: data = &details.social; break;
+	case budget_categories::military: data = &details.military_wages; break;
+	case budget_categories::education: data = &details.education_wages; break;
+	case budget_categories::admin: data = &details.administration_wages; scaled = false; break;
+	case budget_categories::domestic_investment: data = &details.domestic_investments; break;
+	case budget_categories::overseas_spending: data = &details.overseas_penalty; break;
+	case budget_categories::subsidies: data = &details.subsidy; break;
+	case budget_categories::construction: data = &details.construction_supplies; break;
+	case budget_categories::army_upkeep: data = &details.military_supplies_land; break;
+	case budget_categories::navy_upkeep: data = &details.military_supplies_navy; break;
+	case budget_categories::stockpile: data = &details.stockpile; break;
+	default: break;
+	}
+	if(!data)
+		return;
+
+	auto line = [&](std::string_view key, text::substitution_map& m) {
+		auto box = text::open_layout_box(contents, 0);
+		text::localised_format_box(state, contents, box, key, m);
+		text::close_layout_box(contents, box);
+	};
+
+	{
+		text::substitution_map m;
+		line("alice_budget_ratio_explain", m);
+	}
+	{
+		text::substitution_map m;
+		text::add_to_substitution_map(m, text::variable_type::value, text::fp_currency{ data->dedicated_budget });
+		line("alice_budget_ratio_requested", m);
+	}
+	{
+		text::substitution_map m;
+		text::add_to_substitution_map(m, text::variable_type::value, text::fp_currency{ data->actual_spending });
+		line("alice_budget_ratio_spent", m);
+	}
+	if(scaled && details.scale < 0.999f) {
+		text::substitution_map m;
+		text::add_to_substitution_map(m, text::variable_type::perc, text::fp_percentage{ details.scale });
+		text::add_to_substitution_map(m, text::variable_type::x, text::fp_currency{ details.scaled_requested });
+		text::add_to_substitution_map(m, text::variable_type::y, text::fp_currency{ details.scaled_available });
+		line("alice_budget_ratio_cut", m);
+	}
+	if(data->dedicated_budget > 0.f && data->actual_spending < data->dedicated_budget * (scaled ? details.scale : 1.f) * 0.9f) {
+		text::substitution_map m;
+		line("alice_budget_ratio_unspent", m);
+	}
 }
 ui::message_result budgetwindow_section_header_t::on_lbutton_down(sys::state& state, int32_t x, int32_t y, sys::key_modifiers mods) noexcept {
 	return ui::message_result::consumed;

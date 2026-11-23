@@ -128,7 +128,10 @@ budget_spending_details estimate_budget_detailed(sys::state& state, dcon::nation
 	auto military_budget = estimate_pop_payouts_by_income_type(state, n, culture::income_type::military) * priority.military_wages;
 	auto domestic_investment = budget_ratio(available_funds, priority.domestic_investments);
 
-	auto education_budget_before_refund = budget_ratio(available_funds, priority.education_wages);;
+	// The slider only caps education spending; the daily update charges the wages schools actually hire
+	// (see full_spending_cost in economy.cpp), so count that against the funds, not the whole cap.
+	auto education_budget_cap = budget_ratio(available_funds, priority.education_wages);
+	auto education_budget_before_refund = std::min(education_budget_cap, estimate_education_spending_before_refund(state, n));
 	auto education_budget_after_refund = estimate_education_spending_after_refund(state, n);
 
 	auto overseas_budget_before_refund = economy::estimate_overseas_penalty_spending_before_refund(state, n) * priority.overseas_penalty;
@@ -173,6 +176,9 @@ budget_spending_details estimate_budget_detailed(sys::state& state, dcon::nation
 	}
 
 	scale = std::clamp(scale, 0.f, 1.f);
+	result.scale = scale;
+	result.scaled_requested = total;
+	result.scaled_available = std::max(0.f, available_funds - admin_budget);
 
 	result.social.actual_spending = social_budget * scale;
 	result.social.dedicated_budget = social_budget;
@@ -187,7 +193,7 @@ budget_spending_details estimate_budget_detailed(sys::state& state, dcon::nation
 	result.domestic_investments.priority = priority.domestic_investments;
 
 	result.education_wages.actual_spending = education_budget_after_refund * scale;
-	result.education_wages.dedicated_budget = education_budget_before_refund;
+	result.education_wages.dedicated_budget = education_budget_cap;
 	result.education_wages.priority = priority.education_wages;
 
 	result.overseas_penalty.actual_spending = overseas_budget_after_refund * scale;

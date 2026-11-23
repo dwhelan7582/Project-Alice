@@ -2215,3 +2215,8 @@ refund_explanation;Ratio of desired goods and services which was actually purcha
 expected_import_price;Expected import price
 expected_export_price;Expected export price
 trade_volume_speed_multiplier;Speed mulltiplier
+alice_budget_ratio_explain;This % is how much of this category's request will actually be spent.
+alice_budget_ratio_requested;Requested per day: ?Y$value$?!
+alice_budget_ratio_spent;Expected to be spent per day: ?Y$value$?!
+alice_budget_ratio_cut;?RBudget cut:?! all categories together request ?Y$x$?! per day, but only ?Y$y$?! is available after administration, so every category except administration is paid at ?Y$perc$?!. Lower the categories you care least about to raise this.
+alice_budget_ratio_unspent;?RPartly unspent:?! the goods or workers this category needs are not available, so part of the money is returned. Raising the slider will not help.

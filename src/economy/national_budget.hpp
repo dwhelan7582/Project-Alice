@@ -49,6 +49,11 @@ struct budget_spending_details {
 	budget_spending_category stockpile{};
 
 	float total_actual_spending = 0.f;
+	// share of each scaled category that gets paid when requests exceed the funds (1 = fully funded)
+	float scale = 1.f;
+	// total requested by the scaled categories, and what is left for them after interest, diplomacy and admin
+	float scaled_requested = 0.f;
+	float scaled_available = 0.f;
 };
 
 budget_spending_details estimate_budget_detailed(sys::state& state, dcon::nation_id n, value_per_budget_category priority, float available_funds);
